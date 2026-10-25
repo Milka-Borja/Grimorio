@@ -1,18 +1,32 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity, Image } from 'react-native';
 import { Link } from 'expo-router';
 import { useBooks } from '../hooks/useBooks';
 import { useAddReview } from '../hooks/useMockApi';
+import GrimorioAlert from '../components/GrimorioAlert'; // <-- Importamos tu alerta temática
 
 export default function CatalogScreen() {
   const { data, isLoading, isError } = useBooks();
   const addReview = useAddReview(); 
+
+  // Estado para controlar la visibilidad y el mensaje de la alerta temática
+  const [isAlertVisible, setAlertVisible] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
 
   if (isLoading && !data) return <View style={styles.center}><ActivityIndicator size="large" color="#c8a97e" /></View>;
   if (isError) return <View style={styles.center}><Text style={styles.error}>Las estanterías están selladas (Error).</Text></View>;
 
   return (
     <View style={styles.container}>
+      {/* Alerta temática personalizada en lugar de Alert.alert nativa */}
+      <GrimorioAlert
+        visible={isAlertVisible}
+        title="Conjuro Exitoso"
+        message={alertMessage}
+        onConfirm={() => setAlertVisible(false)}
+        confirmText="Entendido"
+      />
+
       <View style={styles.header}>
         <Text style={styles.title}>EL GRIMORIO</Text>
         <Text style={styles.subtitle}>Archivos de Ciencia Ficción</Text>
@@ -46,9 +60,13 @@ export default function CatalogScreen() {
                       bookId: item.key, 
                       bookTitle: item.title, 
                       review: '', 
-                      status: 'Por leer' 
+                      status: 'Por leer',
+                      page: '',
+                      rating: 0
                     });
-                    Alert.alert('Conjuro Exitoso', `"${item.title}" añadido a tu colección.`);
+                    // Mostramos tu alerta temática en lugar de la del sistema
+                    setAlertMessage(`"${item.title}" ha sido añadido a tu colección.`);
+                    setAlertVisible(true);
                   }}>
                   <Text style={styles.addButtonText}>+ Añadir al Grimorio</Text>
                 </TouchableOpacity>

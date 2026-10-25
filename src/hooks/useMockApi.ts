@@ -6,20 +6,19 @@ export const useReviews = () => {
   return useQuery({
     queryKey: queryKeys.mockApi.reviews(),
     queryFn: fetchFavorites,
-    staleTime: 1000 * 60 * 1, // 1 minuto para reseñas propias
+    staleTime: 1000 * 60 * 1,
   });
 };
 
 export const useAddReview = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationKey: ['addReview'], // Clave para offline
+    mutationKey: ['addReview'],
     mutationFn: createFavorite,
     onMutate: async (newReview) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.mockApi.reviews() });
       const previousReviews = queryClient.getQueryData(queryKeys.mockApi.reviews());
 
-      // Actualización optimista exigida
       queryClient.setQueryData(queryKeys.mockApi.reviews(), (old: any) => {
         const currentList = Array.isArray(old) ? old : [];
         return [...currentList, { ...newReview, id: `temp-${Date.now()}`, isPending: true }];
@@ -38,6 +37,25 @@ export const useEditReview = () => {
   return useMutation({
     mutationKey: ['editReview'],
     mutationFn: updateFavorite,
+    onMutate: async (variables: { id: string; data: any }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.mockApi.reviews() });
+      const previousReviews = queryClient.getQueryData(queryKeys.mockApi.reviews());
+
+      // Actualización optimista que inyecta todos los campos editados
+      queryClient.setQueryData(queryKeys.mockApi.reviews(), (old: any) => {
+        const currentList = Array.isArray(old) ? old : [];
+        return currentList.map((item: any) => 
+          item.id === variables.id ? { ...item, ...variables.data, isPending: true } : item
+        );
+      });
+
+      return { previousReviews };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousReviews) {
+        queryClient.setQueryData(queryKeys.mockApi.reviews(), context.previousReviews);
+      }
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.mockApi.reviews() }),
   });
 };
