@@ -56,7 +56,7 @@ Se han configurado valores diferenciados en el `QueryClient` para optimizar el r
 
 1. Clonar el repositorio:
    ```bash
-   git clone <URL_DEL_REPOSITORIO>
+   git clone https://github.com/Milka-Borja/Grimorio.git
 
 2. Instalar las dependencias:
    ```bash
@@ -65,8 +65,10 @@ Se han configurado valores diferenciados en el `QueryClient` para optimizar el r
    Duplicar el archivo .env.example y renombrarlo a .env.
 
 4. Añadir tu endpoint de MockAPI:
-   Fragmento de código
+
+   
    EXPO_PUBLIC_MOCKAPI_URL=[https://tu-id.mockapi.io/api/v1](https://tu-id.mockapi.io/api/v1)
-5. Ejecutar la aplicación en desarrollo:
+   
+6. Ejecutar la aplicación en desarrollo:
 ```bash
 npx expo start
