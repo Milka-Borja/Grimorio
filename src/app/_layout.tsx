@@ -7,14 +7,34 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 
-// 1. Importamos tus funciones del servicio de MockAPI
+// 1. Importamos tus funciones de MockAPI
 import { createFavorite, updateFavorite, deleteFavorite } from '../api/mockApi.service';
 
-// 2. Configurar onlineManager con expo-network (Requisito del deber)
+// 2. Configurar onlineManager de manera reactiva y robusta para el arranque
 onlineManager.setEventListener((setOnline) => {
+  // Inicializamos en true para permitir el intento de envío al abrir con red
+  setOnline(true);
+
   const subscription = Network.addNetworkStateListener((state) => {
-    setOnline(!!state.isConnected && !!state.isInternetReachable);
+    const isConnected = !!state.isConnected && !!state.isInternetReachable;
+    console.log(`[${new Date().toLocaleTimeString()}] 🌐 Cambio de red detectado:`, isConnected);
+    setOnline(isConnected);
+    
+    // Si la red pasa a estar activa, forzamos la ejecución de mutaciones pausadas inmediatamente
+    if (isConnected) {
+      queryClient.resumePausedMutations();
+    }
   });
+
+  // Verificación inicial asíncrona con expo-network
+  Network.getNetworkStateAsync().then((state) => {
+    const isConnected = !!state.isConnected && !!state.isInternetReachable;
+    setOnline(isConnected);
+    if (isConnected) {
+      queryClient.resumePausedMutations();
+    }
+  });
+
   return () => {
     subscription.remove();
   };
@@ -24,10 +44,8 @@ onlineManager.setEventListener((setOnline) => {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Requisito: gcTime debe ser igual o mayor que el maxAge del persister
       gcTime: 1000 * 60 * 60 * 24, // 24 horas
-      // Requisito: Valores distintos de staleTime
-      staleTime: 1000 * 60 * 5, // 5 minutos 
+      staleTime: 1000 * 60 * 5, 
       retry: 2,
     },
   },
@@ -41,15 +59,14 @@ const asyncStoragePersister = createAsyncStoragePersister({
 // 5. Registrar funciones de mutación con setMutationDefaults (OBLIGATORIO PARA OFFLINE)
 queryClient.setMutationDefaults(['addReview'], {
   mutationFn: async (data: any) => {
-    console.log(`[${new Date().toLocaleTimeString()}] Ejecutando creación offline en background...`);
+    console.log(`[${new Date().toLocaleTimeString()}]  Sincronizando creación pendiente con MockAPI...`);
     return await createFavorite(data);
   },
 });
 
 queryClient.setMutationDefaults(['editReview'], {
   mutationFn: async (variables: { id: string; data: any }) => {
-    console.log(`[${new Date().toLocaleTimeString()}] Ejecutando edición offline con datos completos...`);
-    // Enviamos explícitamente el objeto data empaquetado para que MockAPI conserve la reseña, estado, página y estrellas
+    console.log(`[${new Date().toLocaleTimeString()}]  Sincronizando edición pendiente con MockAPI...`);
     return await updateFavorite({ 
       id: variables.id, 
       data: {
@@ -65,13 +82,12 @@ queryClient.setMutationDefaults(['editReview'], {
 
 queryClient.setMutationDefaults(['deleteReview'], {
   mutationFn: async (id: string) => {
-    console.log(`[${new Date().toLocaleTimeString()}] Ejecutando eliminación offline en background...`);
+    console.log(`[${new Date().toLocaleTimeString()}]  Sincronizando eliminación pendiente con MockAPI...`);
     return await deleteFavorite(id);
   },
 });
 
 export default function RootLayout() {
-  // Manejo de foco de la app para refrescar queries al volver a primer plano
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
       if (Platform.OS !== 'web') {
@@ -88,11 +104,10 @@ export default function RootLayout() {
         client={queryClient}
         persistOptions={{ 
           persister: asyncStoragePersister, 
-          maxAge: 1000 * 60 * 60 * 24 // 24 horas (igual o menor que gcTime)
+          maxAge: 1000 * 60 * 60 * 24 
         }}
         onSuccess={() => {
-          // Requisito: Llamar a resumePausedMutations() en el onSuccess
-          console.log(`[${new Date().toLocaleTimeString()}] Restaurando caché y mutaciones pausadas...`);
+          console.log(`[${new Date().toLocaleTimeString()}]  Caché restaurada. Comprobando mutaciones...`);
           queryClient.resumePausedMutations();
         }}
       >

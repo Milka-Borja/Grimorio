@@ -6,7 +6,7 @@ export const useReviews = () => {
   return useQuery({
     queryKey: queryKeys.mockApi.reviews(),
     queryFn: fetchFavorites,
-    staleTime: 1000 * 60 * 1,
+    staleTime: 1000 * 60 * 1, // 1 minuto de staleTime justificado en tu README
   });
 };
 
@@ -19,6 +19,7 @@ export const useAddReview = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.mockApi.reviews() });
       const previousReviews = queryClient.getQueryData(queryKeys.mockApi.reviews());
 
+      // Actualización optimista: añade el elemento con el indicador de pendiente
       queryClient.setQueryData(queryKeys.mockApi.reviews(), (old: any) => {
         const currentList = Array.isArray(old) ? old : [];
         return [...currentList, { ...newReview, id: `temp-${Date.now()}`, isPending: true }];
@@ -26,9 +27,24 @@ export const useAddReview = () => {
       return { previousReviews };
     },
     onError: (err, newReview, context) => {
-      if (context?.previousReviews) queryClient.setQueryData(queryKeys.mockApi.reviews(), context.previousReviews);
+      if (context?.previousReviews) {
+        queryClient.setQueryData(queryKeys.mockApi.reviews(), context.previousReviews);
+      }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.mockApi.reviews() }),
+    // onSuccess se ejecuta apenas la mutación llega a MockAPI con éxito (incluso al reconectarse offline)
+    onSuccess: (data) => {
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ Mutación de creación sincronizada con éxito.`);
+      // Actualizamos la caché local para quitar el isPending y poner el ID real del servidor
+      queryClient.setQueryData(queryKeys.mockApi.reviews(), (old: any) => {
+        const currentList = Array.isArray(old) ? old : [];
+        return currentList.map((item: any) => 
+          item.isPending ? { ...data, isPending: false } : item
+        );
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.mockApi.reviews() });
+    },
   });
 };
 
@@ -41,7 +57,7 @@ export const useEditReview = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.mockApi.reviews() });
       const previousReviews = queryClient.getQueryData(queryKeys.mockApi.reviews());
 
-      // Actualización optimista que inyecta todos los campos editados
+      // Actualización optimista que inyecta todos los campos editados y marca pendiente
       queryClient.setQueryData(queryKeys.mockApi.reviews(), (old: any) => {
         const currentList = Array.isArray(old) ? old : [];
         return currentList.map((item: any) => 
@@ -56,7 +72,12 @@ export const useEditReview = () => {
         queryClient.setQueryData(queryKeys.mockApi.reviews(), context.previousReviews);
       }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.mockApi.reviews() }),
+    onSuccess: () => {
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ Mutación de edición sincronizada con éxito.`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.mockApi.reviews() });
+    },
   });
 };
 
@@ -65,6 +86,11 @@ export const useDeleteReview = () => {
   return useMutation({
     mutationKey: ['deleteReview'],
     mutationFn: deleteFavorite,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.mockApi.reviews() }),
+    onSuccess: () => {
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ Mutación de eliminación sincronizada con éxito.`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.mockApi.reviews() });
+    },
   });
 };
